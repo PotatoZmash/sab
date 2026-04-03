@@ -1,0 +1,357 @@
+local ReplicatedStorage = game:GetService('ReplicatedStorage')
+local Players = game:GetService('Players')
+local TweenService = game:GetService('TweenService')
+
+local LocalPlayer = Players.LocalPlayer
+local spawnedPodiums = {}
+
+local function findPlayerBase()
+    local plots = workspace:FindFirstChild('Plots')
+    if not plots then return nil end
+    for _, plot in pairs(plots:GetChildren()) do
+        if plot:IsA('Model') then
+            local plotSign = plot:FindFirstChild('PlotSign')
+            if plotSign then
+                local yourBase = plotSign:FindFirstChild('YourBase')
+                if yourBase and yourBase:IsA('BillboardGui') and yourBase.Enabled then
+                    return plot
+                end
+            end
+        end
+    end
+    return nil
+end
+
+local function findEmptyPodium(base)
+    local animalPodiums = base:FindFirstChild('AnimalPodiums')
+    if not animalPodiums then return nil end
+    for _, podium in pairs(animalPodiums:GetChildren()) do
+        if podium:IsA('Model') and tonumber(podium.Name) then
+            if spawnedPodiums[podium.Name] then continue end
+            local podiumBase = podium:FindFirstChild('Base')
+            if podiumBase then
+                local spawn = podiumBase:FindFirstChild('Spawn')
+                if spawn and not spawn:FindFirstChild('Attachment') then
+                    return podium
+                end
+            end
+        end
+    end
+    return nil
+end
+
+local function styleRarityLabel(targetRarity)
+    local uiGradient = targetRarity:FindFirstChild('UIGradient')
+    if uiGradient then
+        uiGradient:Destroy()
+        targetRarity.TextColor3 = Color3.fromRGB(255, 215, 0)
+    end
+    local uiStroke = targetRarity:FindFirstChild('UIStroke')
+    if uiStroke then
+        uiStroke.Color = Color3.fromRGB(0, 0, 0) end
+end
+
+local function spawnAnimal()
+    local models = ReplicatedStorage:FindFirstChild('Models')
+    if not models then return end
+    local animals = models:FindFirstChild('Animals')
+    if not animals then return end
+    local strawberryElephant = animals:FindFirstChild('Strawberry Elephant')
+    if not strawberryElephant then return end
+
+    local base = findPlayerBase()
+    if not base then return end
+    local podium = findEmptyPodium(base)
+    if not podium then return end
+
+    local clonedAnimal = strawberryElephant:Clone()
+    local podiumBase = podium:FindFirstChild('Base')
+    if podiumBase then
+        local spawn = podiumBase:FindFirstChild('Spawn')
+        if spawn then
+            clonedAnimal:PivotTo(spawn.CFrame * CFrame.new(0, -1.5, 0))
+        else
+            clonedAnimal:PivotTo(podiumBase.CFrame + Vector3.new(0, 3.5, 0))
+        end
+    end
+
+    clonedAnimal.Parent = podium
+    spawnedPodiums[podium.Name] = true
+
+    local spawn = podiumBase and podiumBase:FindFirstChild('Spawn')
+    if spawn then
+        local sourceAttachment = nil
+        local animalPodiums = base:FindFirstChild('AnimalPodiums')
+        if animalPodiums then
+            for _, otherPodium in pairs(animalPodiums:GetChildren()) do
+                if otherPodium:IsA('Model') and tonumber(otherPodium.Name) and otherPodium ~= podium then
+                    local otherBase = otherPodium:FindFirstChild('Base')
+                    if otherBase then
+                        local otherSpawn = otherBase:FindFirstChild('Spawn')
+                        if otherSpawn then
+                            local att = otherSpawn:FindFirstChild('Attachment')
+                            if att then sourceAttachment = att break end
+                        end
+                    end
+                end
+            end
+        end
+
+        if sourceAttachment then
+            local newAttachment = sourceAttachment:Clone()
+            local animalOverhead = newAttachment:FindFirstChild('AnimalOverhead')
+            if animalOverhead then
+                local dn = animalOverhead:FindFirstChild('DisplayName')
+                if dn then dn.Text = 'Strawberry Elephant' end
+                local gen = animalOverhead:FindFirstChild('Generation')
+                if gen then gen.Text = '$250M/s' end
+                local price = animalOverhead:FindFirstChild('Price')
+                if price then price.Text = '$500B' end
+                local rarity = animalOverhead:FindFirstChild('Rarity')
+                if rarity then rarity.Text = 'OG' styleRarityLabel(rarity) end
+                local mutation = animalOverhead:FindFirstChild('Mutation')
+                if mutation then mutation.Visible = false end
+            end
+            newAttachment.Parent = spawn
+        end
+    end
+
+    local animController = clonedAnimal:FindFirstChild('AnimationController')
+    if animController then
+        local animator = animController:FindFirstChild('Animator')
+        if animator then
+            local animation = Instance.new('Animation')
+            animation.AnimationId = 'rbxassetid://130457563234441'
+            local animTrack = animator:LoadAnimation(animation)
+            animTrack.Looped = true
+            animTrack:Play()
+        end
+    end
+end
+
+-- =====================
+--   DRAGGABLE
+-- =====================
+local function makeDraggable(frame)
+    local dragging, dragStart, startPos = false, nil, nil
+    frame.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = frame.Position
+        end
+    end)
+    frame.InputChanged:Connect(function(input)
+        if (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) and dragging then
+            local delta = input.Position - dragStart
+            TweenService:Create(frame, TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+            }):Play()
+        end
+    end)
+    frame.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+        end
+    end)
+end
+
+-- =====================
+--   NEON GLOW HELPER
+-- =====================
+local function addNeonStroke(instance, color, thickness)
+    local stroke = Instance.new('UIStroke')
+    stroke.Color = color
+    stroke.Thickness = thickness or 2
+    stroke.Transparency = 0
+    stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+    stroke.Parent = instance
+    return stroke
+end
+
+-- =====================
+--   UI
+-- =====================
+local function createUI()
+    local GOLD        = Color3.fromRGB(255, 215, 0)
+    local GOLD_DIM    = Color3.fromRGB(180, 140, 0)
+    local DARK_BG     = Color3.fromRGB(15, 13, 25)
+    local PANEL_BG    = Color3.fromRGB(22, 18, 38)
+    local TITLE_BG    = Color3.fromRGB(30, 24, 50)
+    local BTN_BG      = Color3.fromRGB(38, 30, 65)
+    local BTN_HOVER   = Color3.fromRGB(60, 48, 100)
+    local BTN_CLICK   = Color3.fromRGB(255, 215, 0)
+    local WHITE       = Color3.fromRGB(255, 255, 255)
+
+    local screenGui = Instance.new('ScreenGui')
+    screenGui.Name = 'OGBrainrotSpawner'
+    screenGui.ResetOnSpawn = false
+    screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    screenGui.Parent = LocalPlayer:WaitForChild('PlayerGui')
+
+    -- Main frame
+    local mainFrame = Instance.new('Frame')
+    mainFrame.Size = UDim2.new(0, 270, 0, 148)
+    mainFrame.Position = UDim2.new(0, 50, 0, 50)
+    mainFrame.BackgroundColor3 = PANEL_BG
+    mainFrame.BorderSizePixel = 0
+    mainFrame.Active = true
+    mainFrame.Parent = screenGui
+
+    local mainCorner = Instance.new('UICorner')
+    mainCorner.CornerRadius = UDim.new(0, 16)
+    mainCorner.Parent = mainFrame
+
+    addNeonStroke(mainFrame, GOLD, 2.5)
+
+    -- Title bar
+    local titleFrame = Instance.new('Frame')
+    titleFrame.Size = UDim2.new(1, 0, 0, 46)
+    titleFrame.BackgroundColor3 = TITLE_BG
+    titleFrame.BorderSizePixel = 0
+    titleFrame.Parent = mainFrame
+
+    local titleCorner = Instance.new('UICorner')
+    titleCorner.CornerRadius = UDim.new(0, 16)
+    titleCorner.Parent = titleFrame
+
+    local titleCover = Instance.new('Frame')
+    titleCover.Size = UDim2.new(1, 0, 0, 16)
+    titleCover.Position = UDim2.new(0, 0, 1, -16)
+    titleCover.BackgroundColor3 = TITLE_BG
+    titleCover.BorderSizePixel = 0
+    titleCover.Parent = titleFrame
+
+    local titleDivider = Instance.new('Frame')
+    titleDivider.Size = UDim2.new(1, -20, 0, 1)
+    titleDivider.Position = UDim2.new(0, 10, 1, -1)
+    titleDivider.BackgroundColor3 = GOLD
+    titleDivider.BorderSizePixel = 0
+    titleDivider.BackgroundTransparency = 0.4
+    titleDivider.Parent = titleFrame
+
+    local titleLabel = Instance.new('TextLabel')
+    titleLabel.Size = UDim2.new(1, -16, 1, 0)
+    titleLabel.Position = UDim2.new(0, 14, 0, 0)
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.Text = '✦ OG Brainrot Spawner'
+    titleLabel.TextColor3 = GOLD
+    titleLabel.TextScaled = true
+    titleLabel.Font = Enum.Font.GothamBold
+    titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    titleLabel.Parent = titleFrame
+
+    local titleStroke = Instance.new('UIStroke')
+    titleStroke.Color = GOLD_DIM
+    titleStroke.Thickness = 1
+    titleStroke.Transparency = 0.5
+    titleStroke.Parent = titleLabel
+
+    -- Spawn button
+    local spawnBtn = Instance.new('TextButton')
+    spawnBtn.Size = UDim2.new(1, -20, 0, 52)
+    spawnBtn.Position = UDim2.new(0, 10, 0, 56)
+    spawnBtn.BackgroundColor3 = BTN_BG
+    spawnBtn.BorderSizePixel = 0
+    spawnBtn.Text = ''
+    spawnBtn.AutoButtonColor = false
+    spawnBtn.Parent = mainFrame
+
+    local btnCorner = Instance.new('UICorner')
+    btnCorner.CornerRadius = UDim.new(0, 12)
+    btnCorner.Parent = spawnBtn
+
+    addNeonStroke(spawnBtn, GOLD, 1.5)
+
+    local btnIcon = Instance.new('TextLabel')
+    btnIcon.Size = UDim2.new(0, 32, 1, 0)
+    btnIcon.Position = UDim2.new(0, 10, 0, 0)
+    btnIcon.BackgroundTransparency = 1
+    btnIcon.Text = '🐘'
+    btnIcon.TextScaled = true
+    btnIcon.Font = Enum.Font.GothamBold
+    btnIcon.Parent = spawnBtn
+
+    local btnLabel = Instance.new('TextLabel')
+    btnLabel.Size = UDim2.new(1, -55, 0, 22)
+    btnLabel.Position = UDim2.new(0, 48, 0, 8)
+    btnLabel.BackgroundTransparency = 1
+    btnLabel.Text = 'Strawberry Elephant'
+    btnLabel.TextColor3 = WHITE
+    btnLabel.TextScaled = true
+    btnLabel.Font = Enum.Font.GothamBold
+    btnLabel.TextXAlignment = Enum.TextXAlignment.Left
+    btnLabel.Parent = spawnBtn
+
+    local btnSub = Instance.new('TextLabel')
+    btnSub.Size = UDim2.new(1, -55, 0, 16)
+    btnSub.Position = UDim2.new(0, 48, 0, 30)
+    btnSub.BackgroundTransparency = 1
+    btnSub.Text = '$250M/s  •  $500B  •  OG'
+    btnSub.TextColor3 = GOLD
+    btnSub.TextScaled = true
+    btnSub.Font = Enum.Font.Gotham
+    btnSub.TextXAlignment = Enum.TextXAlignment.Left
+    btnSub.Parent = spawnBtn
+
+    -- Bottom spawn action button
+    local actionBtn = Instance.new('TextButton')
+    actionBtn.Size = UDim2.new(1, -20, 0, 30)
+    actionBtn.Position = UDim2.new(0, 10, 0, 112)
+    actionBtn.BackgroundColor3 = GOLD
+    actionBtn.BorderSizePixel = 0
+    actionBtn.Text = 'SPAWN'
+    actionBtn.TextColor3 = Color3.fromRGB(30, 20, 0)
+    actionBtn.TextScaled = true
+    actionBtn.Font = Enum.Font.GothamBold
+    actionBtn.AutoButtonColor = false
+    actionBtn.Parent = mainFrame
+
+    local actionCorner = Instance.new('UICorner')
+    actionCorner.CornerRadius = UDim.new(0, 10)
+    actionCorner.Parent = actionBtn
+
+    -- Hover & click animations for spawn button
+    spawnBtn.MouseEnter:Connect(function()
+        TweenService:Create(spawnBtn, TweenInfo.new(0.15), { BackgroundColor3 = BTN_HOVER }):Play()
+    end)
+    spawnBtn.MouseLeave:Connect(function()
+        TweenService:Create(spawnBtn, TweenInfo.new(0.15), { BackgroundColor3 = BTN_BG }):Play()
+    end)
+
+    -- Hover & click for action button
+    actionBtn.MouseEnter:Connect(function()
+        TweenService:Create(actionBtn, TweenInfo.new(0.15), { BackgroundColor3 = Color3.fromRGB(255, 235, 80) }):Play()
+    end)
+    actionBtn.MouseLeave:Connect(function()
+        TweenService:Create(actionBtn, TweenInfo.new(0.15), { BackgroundColor3 = GOLD }):Play()
+    end)
+
+    local function doSpawn()
+        TweenService:Create(actionBtn, TweenInfo.new(0.08), { Size = UDim2.new(0.95, 0, 0, 27) }):Play()
+        task.delay(0.1, function()
+            TweenService:Create(actionBtn, TweenInfo.new(0.12), { Size = UDim2.new(1, -20, 0, 30) }):Play()
+        end)
+        spawnAnimal()
+    end
+
+    actionBtn.MouseButton1Click:Connect(doSpawn)
+    spawnBtn.MouseButton1Click:Connect(doSpawn)
+
+    -- Neon pulse animation on the main frame stroke
+    local stroke = mainFrame:FindFirstChildOfClass('UIStroke')
+    if stroke then
+        task.spawn(function()
+            while mainFrame.Parent do
+                TweenService:Create(stroke, TweenInfo.new(1.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), { Transparency = 0.5 }):Play()
+                task.wait(1.2)
+                TweenService:Create(stroke, TweenInfo.new(1.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), { Transparency = 0 }):Play()
+                task.wait(1.2)
+            end
+        end)
+    end
+
+    makeDraggable(mainFrame)
+end
+
+createUI()
