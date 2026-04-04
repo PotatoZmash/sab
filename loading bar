@@ -1,0 +1,168 @@
+local Player = game.Players.LocalPlayer
+local TweenService = game:GetService("TweenService")
+local UIS = game:GetService("UserInputService")
+
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Parent = Player:WaitForChild("PlayerGui")
+
+-- Main Frame
+local Frame = Instance.new("Frame")
+Frame.Size = UDim2.new(0, 320, 0, 100)
+Frame.Position = UDim2.new(0.5, -160, 0.8, -50)
+Frame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+Frame.BackgroundTransparency = 0.2 -- opacity
+Frame.Parent = ScreenGui
+
+-- Rounded
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 15)
+UICorner.Parent = Frame
+
+-- Golden Glow Outline
+local Stroke = Instance.new("UIStroke")
+Stroke.Color = Color3.fromRGB(255, 215, 0)
+Stroke.Thickness = 2
+Stroke.Parent = Frame
+
+-- Glow effect (pulsing)
+task.spawn(function()
+	while true do
+		TweenService:Create(Stroke, TweenInfo.new(1.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
+			Thickness = 4
+		}):Play()
+		task.wait(1.2)
+		TweenService:Create(Stroke, TweenInfo.new(1.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
+			Thickness = 2
+		}):Play()
+		task.wait(1.2)
+	end
+end)
+
+-- Title
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, 0, 0, 30)
+Title.Position = UDim2.new(0, 0, 0, 5)
+Title.BackgroundTransparency = 1
+Title.Text = "❄ CRYONIX HUB"
+Title.TextColor3 = Color3.fromRGB(200, 240, 255)
+Title.Font = Enum.Font.SourceSansBold
+Title.TextScaled = true
+Title.Parent = Frame
+
+-- Ice logo (simple)
+local Logo = Instance.new("TextLabel")
+Logo.Size = UDim2.new(0, 30, 0, 30)
+Logo.Position = UDim2.new(0, 5, 0, 5)
+Logo.BackgroundTransparency = 1
+Logo.Text = "🧊"
+Logo.TextScaled = true
+Logo.Font = Enum.Font.SourceSans
+Logo.Parent = Frame
+
+-- Bar Background
+local BarBG = Instance.new("Frame")
+BarBG.Size = UDim2.new(0.9, 0, 0, 18)
+BarBG.Position = UDim2.new(0.05, 0, 0.65, 0)
+BarBG.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+BarBG.Parent = Frame
+
+local BarCorner = Instance.new("UICorner")
+BarCorner.CornerRadius = UDim.new(1, 0)
+BarCorner.Parent = BarBG
+
+-- Progress Bar
+local Bar = Instance.new("Frame")
+Bar.Size = UDim2.new(0, 0, 1, 0)
+Bar.BackgroundColor3 = Color3.fromRGB(0, 200, 255)
+Bar.Parent = BarBG
+
+local BarCorner2 = Instance.new("UICorner")
+BarCorner2.CornerRadius = UDim.new(1, 0)
+BarCorner2.Parent = Bar
+
+-- Meteor shine
+local Meteor = Instance.new("Frame")
+Meteor.Size = UDim2.new(0, 40, 1, 0)
+Meteor.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+Meteor.BackgroundTransparency = 0.5
+Meteor.Parent = Bar
+
+local Gradient = Instance.new("UIGradient")
+Gradient.Transparency = NumberSequence.new({
+	NumberSequenceKeypoint.new(0, 1),
+	NumberSequenceKeypoint.new(0.5, 0),
+	NumberSequenceKeypoint.new(1, 1)
+})
+Gradient.Parent = Meteor
+
+-- Text %
+local Percent = Instance.new("TextLabel")
+Percent.Size = UDim2.new(1, 0, 0, 20)
+Percent.Position = UDim2.new(0, 0, 1, -20)
+Percent.BackgroundTransparency = 1
+Percent.Text = "0%"
+Percent.TextColor3 = Color3.fromRGB(255,255,255)
+Percent.Font = Enum.Font.SourceSans
+Percent.TextScaled = true
+Percent.Parent = Frame
+
+-- DRAG SYSTEM
+local dragging, dragInput, dragStart, startPos
+
+Frame.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 then
+		dragging = true
+		dragStart = input.Position
+		startPos = Frame.Position
+
+		input.Changed:Connect(function()
+			if input.UserInputState == Enum.UserInputState.End then
+				dragging = false
+			end
+		end)
+	end
+end)
+
+Frame.InputChanged:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseMovement then
+		dragInput = input
+	end
+end)
+
+UIS.InputChanged:Connect(function(input)
+	if input == dragInput and dragging then
+		local delta = input.Position - dragStart
+		Frame.Position = UDim2.new(
+			startPos.X.Scale,
+			startPos.X.Offset + delta.X,
+			startPos.Y.Scale,
+			startPos.Y.Offset + delta.Y
+		)
+	end
+end)
+
+-- LOADING (45 sec)
+local duration = 45
+local steps = 100
+local waitTime = duration / steps
+
+for i = 1, steps do
+	local progress = i / steps
+
+	TweenService:Create(Bar, TweenInfo.new(waitTime, Enum.EasingStyle.Linear), {
+		Size = UDim2.new(progress, 0, 1, 0)
+	}):Play()
+
+	Percent.Text = i.."%"
+
+	Meteor.Position = UDim2.new(-0.2, 0, 0, 0)
+	TweenService:Create(Meteor, TweenInfo.new(0.4), {
+		Position = UDim2.new(1.2, 0, 0, 0)
+	}):Play()
+
+	task.wait(waitTime)
+end
+
+Percent.Text = "Loaded!"
+task.wait(1)
+ScreenGui:Destroy()
